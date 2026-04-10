@@ -13,8 +13,8 @@ st.title("知识库更新服务")
 
 # file_uploader
 uploader_file = st.file_uploader(
-    "请上传txt文件",
-    type=['txt'],
+    "📤 上传知识文件 (支持 .txt, .pdf)",
+    type=['txt', 'pdf'],
     accept_multiple_files=False,
 )
 
@@ -25,16 +25,19 @@ if uploader_file is not None:
     # 提取文件信息
     file_name = uploader_file.name
     file_type = uploader_file.type
-    file_size = uploader_file.size / 1024 #KB
+    file_size = uploader_file.size / 1024 # KB
     
-    st.subheader(f"文件名:{file_name}")
-    st.write(f"格式:{file_type} | 大小:{file_size:.2f} KB")
+    st.info(f"📄 文件名: {file_name} | 📏 大小: {file_size:.2f} KB")
     
-    #获取文件内容 getvalue -> bytes -> decode(utf-8)
-    text = uploader_file.getvalue().decode('utf-8')
-    
-    with st.spinner("载入向量库中..."):
-        time.sleep(1)
-        result = st.session_state["service"].upload_by_str(text,file_name)
-        st.write(result)
+    with st.spinner("⏳ 正在载入向量库，请稍候..."):
+        # 直接使用 getvalue 获取字节内容
+        file_content = uploader_file.getvalue()
+        result = st.session_state["service"].upload_by_file(file_content, file_name)
+        
+        if "[成功]" in result:
+            st.success(result)
+        elif "[跳过]" in result:
+            st.warning(result)
+        else:
+            st.error(result)
     

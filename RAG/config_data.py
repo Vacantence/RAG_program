@@ -1,25 +1,43 @@
-md5_path ="./md5.text"
+import os
+from dotenv import load_dotenv
+import logging
+
+# 加载 .env 文件
+load_dotenv()
+
+# 配置日志
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.StreamHandler(),
+        logging.FileHandler("app.log", encoding="utf-8")
+    ]
+)
+logger = logging.getLogger("RAG-System")
+
+# 基础配置
+md5_path = os.getenv("MD5_PATH", "./md5.text")
 
 # Chroma
-collection_name = "rag"
-persist_directory = "./chroma_db"
+collection_name = os.getenv("COLLECTION_NAME", "rag")
+persist_directory = os.getenv("PERSIST_DIRECTORY", "./chroma_db")
 
+# Spliter
+chunk_size = int(os.getenv("CHUNK_SIZE", 1000))
+chunk_overlap = int(os.getenv("CHUNK_OVERLAP", 100))
+separators = ["\n\n", "\n", ".", "!", "?", "。", "！", "？", " ", ""]
+max_spliter_char_number = int(os.getenv("MAX_SPLITTER_CHAR_NUMBER", 1000))
 
-#spliter
-chunk_size = 1000
-chunk_overlap = 100
-separators = ["\n\n","\n",".","!","?","。","！","？"," ",""]
-max_spliter_char_number = 1000   #文本分割的阈值
+# 相似度检索数量
+similarity_k = int(os.getenv("SIMILARITY_K", 3))
 
-#相似度检索阈值
-similarity_threshold = 2
-
-#嵌入模型
-embedding_model_name = "text-embedding-v4"
-chat_model_name = "qwen3-max"
+# 模型配置
+embedding_model_name = os.getenv("EMBEDDING_MODEL_NAME", "text-embedding-v4")
+chat_model_name = os.getenv("CHAT_MODEL_NAME", "qwen-max")
 
 session_config = {
-        "configurable":{
-            "session_id":"user_001",
-        }
+    "configurable": {
+        "session_id": "user_001",
     }
+}

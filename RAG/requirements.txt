@@ -1,0 +1,14 @@
+langchain
+langchain-chroma
+langchain-community
+langchain-openai
+dashscope
+python-dotenv
+streamlit
+fastapi
+uvicorn
+pydantic
+pypdf
+rpds-py
+jsonschema
+referencing

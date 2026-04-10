@@ -16,4 +16,4 @@ class VectorStoreService(object):
     
     def get_retriever(self):
         """返回向量检索器,方便加入chain"""
-        return self.vector_store.as_retriever(search_kwargs = {"k":config.similarity_threshold})
+        return self.vector_store.as_retriever(search_kwargs={"k": config.similarity_k})
