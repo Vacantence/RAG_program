@@ -101,7 +101,7 @@ streamlit run app_qa.py
 - `chat_model_name`: 使用的 LLM 模型 (默认 `qwen-plus`)。
 - `chunk_size` & `chunk_overlap`: 文本切分的长度和重叠度。
 
-## 🌟 后续优化建议
+## 🌟 后续优化计划
 
 - [ ] 支持 PDF、Word、Excel 等更多非结构化文档。
 - [ ] 引入混合检索 (BM25 + Vector) 提升召回精度。
