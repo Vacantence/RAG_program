@@ -1,120 +1,109 @@
-# RAG案例项目
+# 🚀 智能 RAG 客服系统
 
-一个基于 LangChain、Chroma 和 Streamlit 的轻量级 RAG（检索增强生成）问答项目。项目支持将本地 TXT 文档写入向量库，并通过大模型结合知识库内容进行多轮问答，适合作为 RAG 入门与演示案例。
+一个基于 **LangChain**、**ChromaDB** 和 **Streamlit** 构建的轻量级检索增强生成（RAG）问答系统。本项目支持将本地文档（TXT 等）导入向量库，并利用大语言模型（通义千问）结合知识库内容进行智能对话，支持多轮问答及来源追溯。
 
-## 项目特点
+## 📸 项目演示
 
-- 基于 LangChain 构建完整 RAG 流程
-- 使用 Chroma 作为本地向量数据库
-- 使用 DashScope Embedding 模型完成文本向量化
-- 使用通义千问聊天模型完成知识问答
-- 支持基于文件的多轮对话历史持久化
-- 提供知识库上传页面和问答页面两个 Streamlit 应用
-- 支持基于 MD5 的文本去重，避免重复入库
+| 问答界面 | 来源追溯 |
+| :---: | :---: |
+| ![demo1](./images/demo1.png) | ![demo2](./images/demo2.png) |
 
-## 项目结构
+## ✨ 项目特点
+
+- **全流程 RAG 链路**：基于 LangChain 编排，覆盖“知识入库 -> 向量检索 -> LLM 生成”完整流程。
+- **本地向量库**：使用 ChromaDB 作为本地持久化向量数据库，无需昂贵的云端存储。
+- **高性能 Embedding**：采用 DashScope (阿里云百炼) 提供的 Embedding 模型完成高维向量转化。
+- **智能对话模型**：集成通义千问 (Qwen) 大模型，生成精准且符合上下文的回答。
+- **多轮会话管理**：支持基于 `session_id` 的多轮对话历史持久化，实现连贯的交互体验。
+- **来源透明化**：问答结果支持“参考来源”展示，用户可点击展开查看召回的原文片段。
+- **知识库自动化**：提供专门的上传管理页面，支持文档切分、MD5 去重及增量入库。
+
+## 🛠️ 主要技术栈
+
+- **核心框架**：[LangChain](https://github.com/langchain-ai/langchain)
+- **前端界面**：[Streamlit](https://streamlit.io/)
+- **向量数据库**：[Chroma](https://www.trychroma.com/)
+- **模型支持**：[DashScope](https://help.aliyun.com/zh/dashscope/) (通义千问 / Qwen)
+- **编程语言**：Python 3.9+
+
+## 📂 项目结构
 
 ```text
-RAG案例项目/
-├─ app_file_uploader.py      # 知识库上传页面
-├─ app_qa.py                 # 智能问答页面
-├─ config_data.py            # 全局配置
-├─ file_history_store.py     # 对话历史文件存储
-├─ knowledge_base.py         # 文档切分与向量入库
-├─ rag.py                    # RAG 问答链核心逻辑
-├─ vector_stores.py          # 向量检索封装
-├─ data/                     # 示例知识库文本
-├─ chroma_db/                # 本地向量数据库目录
-└─ chat_history/             # 会话历史记录目录
+RAG_program/
+├── RAG/                     # 核心代码目录
+│   ├── app_qa.py            # 🚀 智能问答主界面 (Streamlit)
+│   ├── app_file_uploader.py # 📂 知识库文件上传与管理界面
+│   ├── rag.py               # 🧠 RAG 问答链核心逻辑实现
+│   ├── knowledge_base.py    # 📚 文档处理、切分与向量化入库
+│   ├── vector_stores.py     # 🔍 向量库检索与封装
+│   ├── config_data.py       # ⚙️ 全局配置文件 (模型、路径等)
+│   ├── file_history_store.py# 💾 对话历史文件存储逻辑
+│   ├── data/                # 📄 示例知识库文本数据
+│   ├── chroma_db/           # 🗄️ ChromaDB 本地持久化目录
+│   └── chat_history/        # 🗨️ 会话历史记录存储
+├── images/                  # 🖼️ README 演示图片
+└── README.md                # 📖 项目说明文档
 ```
 
-## 核心流程
+## 🚀 快速开始
 
-1. 通过上传页面导入 TXT 文档
-2. 对文本进行切分，并调用 Embedding 模型生成向量
-3. 将文本片段及元数据写入 Chroma 向量库
-4. 用户在问答页面输入问题
-5. 系统先从向量库检索相关片段，再将检索结果和历史消息一起传给大模型
-6. 大模型基于知识库上下文生成回答
+### 1. 环境准备
 
-## 主要技术栈
-
-- Python
-- LangChain
-- Streamlit
-- Chroma
-- DashScope Embeddings
-- Tongyi / Qwen Chat Model
-
-## 运行前准备
-
-### 1. 安装依赖
-
-建议使用 Python 3.9 及以上版本。
+确保已安装 Python 3.9 或更高版本。
 
 ```bash
-pip install streamlit langchain langchain-community langchain-core langchain-chroma langchain-text-splitters dashscope
+# 克隆项目 (如果有的话)
+# git clone <project_url>
+# cd RAG_program/RAG
+
+# 安装依赖
+pip install -r RAG/requirements.txt
 ```
 
 ### 2. 配置 API Key
 
-本项目使用阿里云百炼相关模型，运行前请先配置环境变量：
+本项目使用阿里云百炼相关模型，请先在 [阿里云百炼平台](https://bailian.console.aliyun.com/) 获取 API Key。
+
+设置环境变量：
 
 ```bash
-set DASHSCOPE_API_KEY=你的API_KEY
+# Windows (CMD)
+set DASHSCOPE_API_KEY=your_api_key_here
+
+# Windows (PowerShell)
+$env:DASHSCOPE_API_KEY="your_api_key_here"
+
+# Linux / macOS
+export DASHSCOPE_API_KEY="your_api_key_here"
 ```
 
-如果你使用 PowerShell，也可以执行：
+### 3. 运行项目
 
-```powershell
-$env:DASHSCOPE_API_KEY="你的API_KEY"
-```
-
-## 启动方式
-
-### 启动知识库上传页面
-
+#### 步骤 A：导入知识库 (可选，已有 data 目录)
 ```bash
+cd RAG
 streamlit run app_file_uploader.py
 ```
+在界面中选择 `data/` 目录下的文件或上传新文件，完成向量化入库。
 
-### 启动智能问答页面
-
+#### 步骤 B：启动智能问答
 ```bash
+cd RAG
 streamlit run app_qa.py
 ```
 
-## 配置说明
+## 💡 配置说明
 
-项目默认配置位于 `config_data.py`，包括：
+你可以通过修改 `RAG/config_data.py` 来调整系统参数：
 
-- 向量库目录 `persist_directory`
-- 集合名称 `collection_name`
-- 文本切分参数 `chunk_size`、`chunk_overlap`
-- 检索数量 `similarity_threshold`
-- Embedding 模型名称 `embedding_model_name`
-- 对话模型名称 `chat_model_name`
+- `persist_directory`: 向量库保存路径。
+- `embedding_model_name`: 使用的 Embedding 模型 (默认 `text-embedding-v2`)。
+- `chat_model_name`: 使用的 LLM 模型 (默认 `qwen-plus`)。
+- `chunk_size` & `chunk_overlap`: 文本切分的长度和重叠度。
 
-## 示例数据
+## 🌟 后续优化建议
 
-`data/` 目录中提供了示例知识文件：
-
-- 尺码推荐
-- 洗涤养护
-- 颜色选择
-
-可以先通过上传页面将这些文本导入知识库，再到问答页面进行测试。
-
-## 项目亮点
-
-- 代码结构清晰，适合理解 RAG 基础实现
-- 覆盖“知识入库 + 检索问答 + 历史会话”完整链路
-- 适合用作课程作业、项目演示或简历项目
-
-## 后续可扩展方向
-
-- 支持 PDF、Word 等更多文件格式
-- 增加更细粒度的召回与重排策略
-- 增加后台管理与知识库删除能力
-- 接入更完整的用户系统与多会话管理
-
+- [ ] 支持 PDF、Word、Excel 等更多非结构化文档。
+- [ ] 引入混合检索 (BM25 + Vector) 提升召回精度。
+- [ ] 增加 Rerank 模型对检索结果进行重排序。
+- [ ] 接入更丰富的 UI 组件及图表展示。
