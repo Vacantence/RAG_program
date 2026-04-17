@@ -1,104 +1,137 @@
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Union, Annotated, Sequence, TypedDict
 from vector_stores import VectorStoreService
 from langchain_community.embeddings import DashScopeEmbeddings
 import config_data as config
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_community.chat_models import ChatTongyi
-from langchain_core.runnables import RunnablePassthrough, RunnableWithMessageHistory, RunnableLambda, RunnableParallel
-from langchain_core.documents import Document
-from langchain_core.output_parsers import StrOutputParser
+from langchain_core.messages import BaseMessage, HumanMessage, AIMessage
+from langchain_core.tools import tool
+from langchain_core.runnables import RunnableConfig
+from langgraph.graph import StateGraph, END, add_messages
+from langgraph.prebuilt import ToolNode
 from file_history_store import get_history
 import logging
 
 logger = logging.getLogger("RAG-System.RagService")
 
-from langchain_classic.retrievers import MultiQueryRetriever
-from langchain_core.language_models import BaseChatModel
+# 定义图的状态
+class AgentState(TypedDict):
+    # add_messages 会将新消息追加到现有列表中，而不是覆盖它
+    messages: Annotated[Sequence[BaseMessage], add_messages]
 
 class RagService:
     def __init__(self):
-        logger.info("Initializing RagService...")
+        logger.info("Initializing LangGraph Agentic RagService...")
         self.vector_service = VectorStoreService(
             embedding=DashScopeEmbeddings(model=config.embedding_model_name)
         )
-        
+        # 必须绑定工具到模型上，才能使用 tool calling
         self.chat_model = ChatTongyi(model=config.chat_model_name)
         
-        self.prompt_template = ChatPromptTemplate.from_messages(
-            [
-                ("system", "你是一个专业且简洁的智能客服。请优先基于提供的参考资料回答用户问题。"
-                 "如果参考资料中没有相关信息，请诚实告知用户。\n\n参考资料:\n{context}"),
-                MessagesPlaceholder("history"),
-                ("user", "{input}")
-            ]
-        )
+        # 1. 定义工具
+        self.tools = [self._create_knowledge_tool()]
+        self.model_with_tools = self.chat_model.bind_tools(self.tools)
         
-        self.chain = self.__get_chain()
-    
-    def __get_chain(self):
-        """构建 RAG 执行链条"""
-        base_retriever = self.vector_service.get_retriever()
+        # 2. 构建图
+        self.workflow = self._build_graph()
         
-        # 引入 MultiQueryRetriever 提升检索召回率
-        retriever = MultiQueryRetriever.from_llm(
-            retriever=base_retriever, 
-            llm=self.chat_model
-        )
-        
-        def format_docs(docs: List[Document]) -> str:
+        # 3. 编译图 (这里暂不使用内置 Checkpointer，因为用户已有文件历史存储逻辑)
+        self.app = self.workflow.compile()
+
+    def _create_knowledge_tool(self):
+        """将 RAG 检索逻辑封装为 Tool"""
+        retriever = self.vector_service.get_retriever()
+
+        @tool
+        def company_knowledge_search(query: str) -> str:
+            """
+            当用户询问关于公司内部政策、产品信息、尺码推荐、洗涤养护等专业知识时，调用此工具。
+            输入应该是用户查询的关键词或问题描述。
+            """
+            docs = retriever.invoke(query)
             if not docs:
-                return "未找到相关参考资料。"
-            return "\n\n".join([f"内容: {doc.page_content}\n来源: {doc.metadata.get('source', '未知')}" for doc in docs])
+                return "在知识库中未找到相关信息。"
+            
+            formatted_docs = []
+            for doc in docs:
+                source = doc.metadata.get("source", "未知来源")
+                formatted_docs.append(f"内容: {doc.page_content}\n来源: {source}")
+            
+            return "\n\n---\n\n".join(formatted_docs)
+            
+        return company_knowledge_search
 
-        # 1. 检索上下文
-        retrieve_context = {
-            "context": (lambda x: x["input"]) | retriever,
-            "input": lambda x: x["input"],
-            "history": lambda x: x["history"]
+    def _build_graph(self):
+        """构建 LangGraph 工作流图"""
+        builder = StateGraph(AgentState)
+
+        # 定义节点：调用模型
+        def call_model(state: AgentState, config: RunnableConfig):
+            # 获取历史记录并与当前输入合并 (由外部 invoke 传入历史)
+            messages = state['messages']
+            response = self.model_with_tools.invoke(messages, config)
+            return {"messages": [response]}
+
+        # 定义节点：工具执行器 (使用预置的 ToolNode)
+        tool_node = ToolNode(self.tools)
+
+        # 添加节点到图中
+        builder.add_node("agent", call_model)
+        builder.add_node("tools", tool_node)
+
+        # 设置入口点
+        builder.set_entry_point("agent")
+
+        # 定义边：条件边决定是否调用工具
+        def should_continue(state: AgentState):
+            messages = state['messages']
+            last_message = messages[-1]
+            # 如果模型输出了 tool_calls，则跳转到 tools 节点
+            if last_message.tool_calls:
+                return "tools"
+            # 否则结束
+            return END
+
+        builder.add_conditional_edges(
+            "agent",
+            should_continue,
+        )
+
+        # 定义边：工具执行完后必须回到 agent 再次判断
+        builder.add_edge("tools", "agent")
+
+        return builder
+
+    def invoke(self, input_text: str, session_id: str = "user_001"):
+        """封装调用方法，兼容原有的历史记录逻辑"""
+        # 1. 获取历史消息
+        history_store = get_history(session_id)
+        history_messages = history_store.messages
+        
+        # 2. 构造当前输入
+        current_message = HumanMessage(content=input_text)
+        
+        # 3. 运行图
+        inputs = {"messages": history_messages + [current_message]}
+        config = {"configurable": {"thread_id": session_id}}
+        
+        final_state = self.app.invoke(inputs, config)
+        
+        # 4. 提取 AI 的最终回答并更新历史记录
+        final_ai_message = final_state["messages"][-1]
+        
+        # 将新消息（Human + AI + 过程中的 Tool 消息）存入历史
+        # 注意：add_messages 只会返回增量或全量，这里我们需要计算出本轮新增的消息
+        new_messages = final_state["messages"][len(history_messages):]
+        history_store.add_messages(new_messages)
+        
+        return {
+            "output": final_ai_message.content,
+            "messages": final_state["messages"]
         }
-
-        # 2. 生成回答
-        # 注意：RunnableWithMessageHistory 要求输入是一个字典，且包含 input_messages_key 指定的键
-        # 我们在这里构建一个能够同时返回回答和上下文的链
-        
-        def process_input(inputs):
-            # inputs: {context: List[Document], input: str, history: List}
-            formatted_context = format_docs(inputs["context"])
-            return {
-                "input": inputs["input"],
-                "context": formatted_context,
-                "history": inputs["history"],
-                "raw_context": inputs["context"] # 保留原始文档用于后续展示
-            }
-
-        core_chain = (
-            RunnableParallel(retrieve_context)
-            | RunnableLambda(process_input)
-            | {
-                "answer": self.prompt_template | self.chat_model | StrOutputParser(),
-                "sources": lambda x: x["raw_context"]
-            }
-        )
-
-        # 包装历史记录
-        # 由于 RunnableWithMessageHistory 默认处理的是单输出，我们需要确保它能正确处理 dict 输出
-        # 或者我们手动管理历史记录以获得更多控制权。为了保持简单且符合 LangChain 规范：
-        chain_with_history = RunnableWithMessageHistory(
-            core_chain,
-            get_history,
-            input_messages_key="input",
-            history_messages_key="history",
-            output_messages_key="answer" # 指定哪个键是回答，用于存入历史
-        )
-        
-        return chain_with_history
 
 if __name__ == "__main__":
     # 测试代码
     service = RagService()
-    res = service.chain.invoke(
-        {"input": "我体重150斤,尺码推荐"},
-        config=config.session_config
-    )
-    print(f"回答: {res['answer']}")
-    print(f"来源数量: {len(res['sources'])}")
+    res = service.invoke("你好，请问我150斤该穿什么尺码？", session_id="user_001")
+    print(f"回答: {res['output']}")

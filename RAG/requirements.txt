@@ -1,7 +1,9 @@
 langchain
-langchain-chroma
+langchain-core
 langchain-community
+langchain-chroma
 langchain-openai
+langgraph
 dashscope
 python-dotenv
 streamlit
